@@ -51,9 +51,9 @@ jobs:
           output-file: sbom.json
 
       # --- DISPLAY SBOM (Now uses cached 'syft' command) ---
-      - name: Display SBOM Summary (Human Readable)
-        if: always()
-        run: syft convert ./sbom.json -o syft-table
+      #- name: Display SBOM Summary (Human Readable)
+       # if: always()
+        #run: syft convert ./sbom.json -o syft-table
         
       # --- VULNERABILITY SCAN & GATE (Policy Enforcement) ---
       - name: Scan Project for Vulnerabilities (Generate SARIF)
