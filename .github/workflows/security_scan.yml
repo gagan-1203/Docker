@@ -74,4 +74,10 @@ jobs:
       # --- DISPLAY SEVERITY (Now uses cached 'grype' command) ---
       - name: Display Vulnerability Scan Results (Severity Table)
         if: always() 
-        run: grype sbom:./sbom.json
+        run: |
+          echo "--- Starting Vulnerability Scan Summary (Grype) ---"
+          
+          # We must be explicit that the file is in CycloneDX JSON format
+          /usr/local/bin/grype sbom:./sbom.json --from-format cyclonedx-json
+          
+          echo "--- Vulnerability Scan Complete ---"
