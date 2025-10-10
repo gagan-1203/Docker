@@ -76,8 +76,5 @@ jobs:
         if: always() 
         run: |
           echo "--- Starting Vulnerability Scan Summary (Grype) ---"
-          
-          # We must be explicit that the file is in CycloneDX JSON format
-          /usr/local/bin/grype sbom:./sbom.json --from-format cyclonedx-json
-          
+          /usr/local/bin/grype sbom:./sbom.json -o table
           echo "--- Vulnerability Scan Complete ---"
