@@ -56,3 +56,18 @@ jobs:
           /usr/local/bin/syft convert ./sbom.json -o syft-table
 
           echo "--- SBOM Summary Complete ---"
+
+#To display the human-readable VULNERABILITY table
+      - name: Display Vulnerability Scan Results
+        if: always() # Run even if previous steps failed
+        run: |
+          echo "--- Starting Vulnerability Scan Summary (Grype) ---"
+          
+          # 1. Install Grype CLI (just like we installed Syft)
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
+          
+          # 2. Run Grype on the SBOM file and output the default tabular format
+          # The default Grype output table includes NAME, VERSION, VULNERABILITY, and SEVERITY.
+          /usr/local/bin/grype sbom:./sbom.json
+          
+          echo "--- Vulnerability Scan Complete ---"
