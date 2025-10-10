@@ -11,52 +11,42 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
+      security-events: write # Required for Upload SARIF
 
     steps:
-      - name: Checkout repository
+      # 1. CHECKOUT CODE
+      - name: 1. Checkout repository
         uses: actions/checkout@v4
         
-      # --- STEP 1: RESTORE CACHE (Check if tools are already installed) ---
-      - name: Cache Syft and Grype Binaries
+      # 2. CACHE RESTORATION
+      - name: 2. Cache Syft and Grype Binaries
         uses: actions/cache@v3
         id: cache-tools
         with:
-          # Define the paths to cache (where we install the tools)
           path: /usr/local/bin/syft /usr/local/bin/grype
-          # Create a unique cache key based on OS and the workflow file hash
           key: ${{ runner.os }}-grype-syft-v1-${{ hashFiles('.github/workflows/security_scan.yml') }}
-          # Fallback keys to use if the primary key isn't found
           restore-keys: |
             ${{ runner.os }}-grype-syft-v1-
 
-      # --- STEP 2: SETUP TOOLS (Conditional Installation) ---
-      # This step only runs if the cache was NOT found (cache-hit != 'true').
-      - name: Setup Anchore CLI Tools (Syft & Grype)
+      # 3. TOOL INSTALLATION (CONDITIONAL)
+      - name: 3. Setup Anchore CLI Tools (Syft & Grype)
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: |
           echo "Cache miss: Installing Syft and Grype from scratch."
-          # Install Syft
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
-          # Install Grype
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
           
-      # --- SBOM GENERATION (Policy Artifact) ---
-      - name: Generate SBOM (Artifact Storage)
+      # 4. GENERATE SBOM (PREREQUISITE FOR SCANNING)
+      - name: 4. Generate SBOM (Artifact Storage)
         uses: anchore/sbom-action@v0
         if: always()
         id: sbom_gen
         with:
           format: cyclonedx-json
           output-file: sbom.json
-
-      # --- DISPLAY SBOM (Now uses cached 'syft' command) ---
-      #- name: Display SBOM Summary (Human Readable)
-       # if: always()
-        #run: syft convert ./sbom.json -o syft-table
         
-      # --- VULNERABILITY SCAN & GATE (Policy Enforcement) ---
-      - name: Scan Project for Vulnerabilities (Generate SARIF)
+      # 5. VULNERABILITY SCAN & GATE (CORE POLICY ENFORCEMENT)
+      - name: 5. Scan Project for Vulnerabilities (Generate SARIF)
         uses: anchore/scan-action@v3 
         id: scan
         with:
@@ -65,16 +55,18 @@ jobs:
           severity-cutoff: high 
           output-format: sarif
           
-      - name: Upload SARIF results to GitHub Code Scanning
+      # 6. UPLOAD SARIF (IMMEDIATE FEEDBACK)
+      - name: 6. Upload SARIF results to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() # Run even if step 5 failed
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
           
-      # --- DISPLAY SEVERITY (Now uses cached 'grype' command) ---
-      - name: Display Vulnerability Scan Results (Severity Table)
-        if: always() 
+      # 7. DISPLAY SEVERITY (LOG FEEDBACK)
+      - name: 7. Display Vulnerability Scan Results (Severity Table)
+        if: always() # Run even if step 5 failed
         run: |
           echo "--- Starting Vulnerability Scan Summary (Grype) ---"
+          # Final corrected command to output the table
           /usr/local/bin/grype sbom:./sbom.json -o table
           echo "--- Vulnerability Scan Complete ---"
