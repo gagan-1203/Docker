@@ -38,6 +38,7 @@ jobs:
         
       - name: Generate SBOM (for artifact storage/auditing)
         uses: anchore/sbom-action@v0
+        if: always() 
         with:
           format: cyclonedx-json
           output-file: sbom.json
