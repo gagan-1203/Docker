@@ -1,0 +1,39 @@
+name: Security Scan - Grype (SCA)
+
+on:
+  pull_request:
+    # Run on every Pull Request to main or master
+    branches: [ main, master ]
+  push:
+    # Also run on final pushes to main or master
+    branches: [ main, master ]
+
+jobs:
+  grype_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Scan Project for Vulnerabilities
+        uses: anchore/scan-action@v3 
+        with:
+          # Scans the current directory (filesystem)
+          path: .
+          
+          # CRITICAL Configuration: Fail the CI/CD build if 
+          # any vulnerability of the specified severity is found.
+          fail-build: true
+          severity-cutoff: critical,high
+          
+          # Optional: Specify the output format to display results clearly
+          output-format: table
+          
+          # Optional: Upload results to GitHub Security tab (Code Scanning)
+          upload-sarif: true
+          
+      - name: Generate SBOM (for artifact storage/auditing)
+        uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          output-file: sbom.json
