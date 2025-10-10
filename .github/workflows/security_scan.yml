@@ -42,3 +42,17 @@ jobs:
         with:
           format: cyclonedx-json
           output-file: sbom.json
+#To display the human-readable summary
+      - name: Display SBOM Summary (Human Readable)
+        if: always() # Runs even if the scan failed, so developers see the inventory
+        run: |
+          echo "--- Starting SBOM Summary Generation ---"
+          
+          # 1. Install Syft CLI temporarily in this run step's environment
+          # We use the same install command we ran locally in WSL
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
+          
+          # 2. Use the Syft CLI to convert the generated JSON back into a table
+          /usr/local/bin/syft convert ./sbom.json -o syft-table
+
+          echo "--- SBOM Summary Complete ---"
