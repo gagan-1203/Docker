@@ -15,17 +15,17 @@ permissions:
   actions: read
 
 jobs:
+  # 1️⃣ CodeQL (SAST)
   sast_scan:
     name: CodeQL (SAST)
     uses: ./.github/workflows/reusable-codeql.yml
     secrets: inherit
 
+  # 2️⃣ Build & Push Docker Image
   build_image:
     name: Build Container
     needs: sast_scan
     runs-on: ubuntu-latest
-    outputs:
-      image_name_tag: ${{ steps.export_tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,7 +36,6 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and Push Image
-        id: build
         uses: docker/build-push-action@v5
         with:
           context: ./first-container
@@ -44,14 +43,9 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
 
-      - name: Export Image Tag
-        id: export_tag
-        run: echo "image_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> "$GITHUB_OUTPUT"
-
+  # 3️⃣ Image Security Scanning
   image_scans:
     name: Image Security Scanners
     needs: build_image
     uses: ./.github/workflows/reusable-image-scans.yml
-    with:
-      image_name_tag: ${{ needs.build_image.outputs.image_name_tag }}
     secrets: inherit
