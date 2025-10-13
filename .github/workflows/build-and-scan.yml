@@ -16,13 +16,13 @@ permissions:
   actions: read
 
 jobs:
-  #1 SAST (CodeQL)
+  # 1️⃣ Code Scanning (SAST)
   sast_scan:
     name: CodeQL (SAST)
     uses: ./.github/workflows/reusable-codeql.yml
     secrets: inherit
 
-  #2 Build Image
+  # 2️⃣ Build and Push Docker Image
   build_image:
     name: Build Container
     needs: sast_scan
@@ -44,23 +44,21 @@ jobs:
         run: |
           echo "IMAGE_TAG=my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
           echo "IMAGE_TAG_FULL=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "Built Image Tag: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}"
 
       - name: Build and Push Image
         uses: docker/build-push-action@v5
         with:
-          context: ./first-container/
-          file: ./first-container/Dockerfile
+          context: ./first-container/app
+          file: ./first-container/app/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
 
-  #3️ Image Scanning (Trivy, Grype, Snyk)
+  # 3️⃣ Image Scanning (Trivy, Grype, Snyk)
   image_scans:
     name: Image Security Scanners
     needs: build_image
     uses: ./.github/workflows/reusable-image-scans.yml
     with:
       image_name_tag: ${{ needs.build_image.outputs.image_name_tag }}
-    secrets:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }} 
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    secrets: inherit
