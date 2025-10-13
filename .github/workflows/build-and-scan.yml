@@ -25,29 +25,31 @@ jobs:
     needs: sast_scan
     runs-on: ubuntu-latest
     outputs:
-      image_name_tag: ${{ steps.set_tag.outputs.IMAGE_TAG_FULL }}
+      image_name_tag: ${{ steps.export_tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub (or your registry)
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Set Image Tag
-        id: set_tag
-        run: |
-          echo "IMAGE_TAG=my-app:${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          echo "IMAGE_TAG_FULL=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> "$GITHUB_OUTPUT"
-
       - name: Build and Push Image
+        id: build
         uses: docker/build-push-action@v5
         with:
-          context: ./first-container/
+          context: ./first-container
           file: ./first-container/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
+
+      - name: Export Image Tag for Downstream Jobs
+        id: export_tag
+        run: echo "image_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Debug Image Tag
+        run: echo "Built image: ${{ steps.export_tag.outputs.image_tag }}"
 
   image_scans:
     name: Image Security Scanners
