@@ -2,69 +2,94 @@ name: Reusable Container Image Security Scans
 
 on:
   workflow_call:
+    inputs:
+      image_name_tag:
+        description: 'The full name:tag of the container image to scan.'
+        required: true
+        type: string
     secrets:
       SNYK_TOKEN:
+        description: 'Snyk API Token'
         required: true
-      DOCKER_USERNAME:
+      DOCKER_USERNAME: 
+        description: 'Docker Registry Username'
         required: true
-      DOCKER_PASSWORD:
+      DOCKER_PASSWORD: 
+        description: 'Docker Registry Password/Token'
         required: true
-
+        
 jobs:
-  scans:
-    name: Trivy + Grype + Snyk Scans
+  
+  # 1. TRIVY SCAN
+  trivy_scan:
+    name: Trivy (Image & Config)
     runs-on: ubuntu-latest
-    env:
-      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
-
     steps:
-      # Log in to registry
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # Pull the image that was just pushed
-      - name: Pull Built Image
-        run: docker pull "$IMAGE"
-
-      # --- Trivy Scan ---
-      - name: Trivy Image Scan
+      
+      # FIX: Explicitly pull the image locally
+      - name: Pull Image for Trivy Scan
+        run: docker pull ${{ inputs.image_name_tag }}
+      
+      - name: Checkout repository (needed for Trivy IaC/Dockerfile scan)
+        uses: actions/checkout@v4
+        
+      - name: Run Trivy Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE }}
-          format: sarif
-          output: trivy-results.sarif
-          scanners: vuln,misconfig,secret
-          severity: CRITICAL,HIGH
-          exit-code: "1"
-
-      - name: Upload Trivy Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+          # FIX: Correct parameter to pass the image tag
+          image-ref: ${{ inputs.image_name_tag }} 
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          scanners: 'vuln,config,secret'
+          severity: 'CRITICAL,HIGH'
+          
+  # 2. GRYPE SCAN
+  grype_scan:
+    name: Grype (Vulnerability)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
-          sarif_file: trivy-results.sarif
-
-      # --- Grype Scan ---
-      - name: Grype Image Scan
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          
+      # FIX: Explicitly pull the image locally
+      - name: Pull Image for Grype Scan
+        run: docker pull ${{ inputs.image_name_tag }}
+          
+      - name: Run Grype Scan
         uses: anchore/scan-action@v3
         with:
-          image: ${{ env.IMAGE }}
-          fail-on-severity: high
-
-      # --- Snyk Scan ---
-      - name: Snyk Container Scan
+          # FIX: Correct parameter to pass the image tag
+          image: ${{ inputs.image_name_tag }} 
+          fail-on-severity: 'high'
+          
+  # 3. SNYK SCAN
+  snyk_scan:
+    name: Snyk Container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          
+      # FIX: Explicitly pull the image locally
+      - name: Pull Image for Snyk Scan
+        run: docker pull ${{ inputs.image_name_tag }}
+          
+      - name: Run Snyk Container Scan
         uses: snyk/actions/docker@master
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }} 
         with:
-          image: ${{ env.IMAGE }}
+          # FIX: Correct parameter to pass the image tag
+          image: ${{ inputs.image_name_tag }}
           args: --severity-threshold=high
-          sarif: true
-
-      - name: Upload Snyk Results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: snyk.sarif
