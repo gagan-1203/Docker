@@ -5,6 +5,10 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+# Dependabot needs to trigger this to validate dependency updates 
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [ "main" ]
 
 # Grant necessary permissions for security reporting
 permissions:
@@ -45,7 +49,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./first-container/app/ 
-          file: ./first-container/app/Dockerfile
+          file: ${{ github.workspace }}/first-container/app/Dockerfile
           push: true # Push the built image to the registry for the next job to pull
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ steps.set_tag.outputs.IMAGE_TAG }}
           outputs: |
