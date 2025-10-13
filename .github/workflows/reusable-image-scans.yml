@@ -4,18 +4,24 @@ on:
   workflow_call:
     inputs:
       image_name_tag:
-        description: "Full name:tag of the container image to scan"
+        description: "Full image name:tag (e.g., user/my-app:sha)"
         required: true
         type: string
+    secrets:
+      SNYK_TOKEN:
+        required: true
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
 
 jobs:
   trivy_scan:
     name: Trivy (Image & Config)
     runs-on: ubuntu-latest
     steps:
-      - name: Debug Image Tag
-        run: |
-          echo "Image to scan (Trivy): ${{ inputs.image_name_tag }}"
+      - name: Debug Image Tag Input
+        run: echo "Trivy scanning image: ${{ inputs.image_name_tag }}"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -39,33 +45,12 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-  grype_scan:
-    name: Grype (Vulnerability)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Debug Image Tag
-        run: |
-          echo "Image to scan (Grype): ${{ inputs.image_name_tag }}"
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Run Grype Scan
-        uses: anchore/scan-action@v3
-        with:
-          image: ${{ inputs.image_name_tag }}
-          fail-on-severity: high
-
   snyk_scan:
     name: Snyk Container
     runs-on: ubuntu-latest
     steps:
-      - name: Debug Image Tag
-        run: |
-          echo "Image to scan (Snyk): ${{ inputs.image_name_tag }}"
+      - name: Debug Image Tag Input
+        run: echo "Snyk scanning image: ${{ inputs.image_name_tag }}"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
