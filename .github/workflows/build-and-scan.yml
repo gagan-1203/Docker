@@ -48,8 +48,8 @@ jobs:
       - name: Build and Push Image
         uses: docker/build-push-action@v5
         with:
-          context: ./first-container/app
-          file: ./first-container/app/Dockerfile
+          context: ./first-container/
+          file: ./first-container/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
 
