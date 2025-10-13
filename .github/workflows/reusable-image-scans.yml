@@ -7,13 +7,6 @@ on:
         description: "Full name:tag of the container image to scan"
         required: true
         type: string
-    secrets:
-      SNYK_TOKEN:
-        required: true
-      DOCKER_USERNAME:
-        required: true
-      DOCKER_PASSWORD:
-        required: true
 
 jobs:
   trivy_scan:
@@ -21,16 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Debug Image Tag
-        run: echo "Image to scan (Trivy): ${{ inputs.image_name_tag }}"
+        run: |
+          echo "Image to scan (Trivy): ${{ inputs.image_name_tag }}"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
       - name: Run Trivy Scan
         uses: aquasecurity/trivy-action@v0.20.0
@@ -40,7 +31,7 @@ jobs:
           output: trivy-results.sarif
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
-          exit-code: "1" # fail job on critical/high vulns
+          exit-code: "1"
 
       - name: Upload Trivy results
         if: always()
@@ -53,7 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Debug Image Tag
-        run: echo "Image to scan (Grype): ${{ inputs.image_name_tag }}"
+        run: |
+          echo "Image to scan (Grype): ${{ inputs.image_name_tag }}"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -72,7 +64,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Debug Image Tag
-        run: echo "Image to scan (Snyk): ${{ inputs.image_name_tag }}"
+        run: |
+          echo "Image to scan (Snyk): ${{ inputs.image_name_tag }}"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
