@@ -1,0 +1,62 @@
+name: Reusable Container Image Security Scans
+
+on:
+  workflow_call:
+    inputs:
+      image_name_tag:
+        description: 'The full name:tag of the container image to scan.'
+        required: true
+        type: string
+    secrets:
+      SNYK_TOKEN:
+        description: 'Snyk API Token'
+        required: true
+        
+jobs:
+  # The three scanners run in parallel for maximum speed
+  
+  # 1. TRIVY SCAN (Image, Config, IaC)
+  trivy_scan:
+    name: Trivy (Image & Config)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (needed for Trivy IaC/Dockerfile scan)
+        uses: actions/checkout@v4
+        
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          # Scans the image pulled from the registry
+          image-ref: ${{ inputs.image_name_tag }} 
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          scanners: 'vuln,config,secret' # Scan for Vulns, Misconfigs, and Secrets
+          severity: 'CRITICAL,HIGH'
+          # This will fail the job if a Critical or High issue is found
+          
+  # 2. GRYPE SCAN (Vulnerability/SBOM)
+  grype_scan:
+    name: Grype (Vulnerability)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Grype Scan
+        uses: anchore/scan-action@v3
+        with:
+          # Scans the image pulled from the registry
+          image: ${{ inputs.image_name_tag }} 
+          fail-on-severity: 'high'
+          # Grype is lightweight and fast for CVE checks
+          
+  # 3. SNYK SCAN (Dependency & Platform)
+  snyk_scan:
+    name: Snyk Container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Snyk Container Scan
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }} 
+        with:
+          image: ${{ inputs.image_name_tag }}
+          # Test for vulns and config issues with Snyk's rich vulnerability DB
+          args: --severity-threshold=high
