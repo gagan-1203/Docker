@@ -24,7 +24,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Run Trivy Scan
-        uses: aquasecurity/trivy-action@v0.20.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ inputs.image_name_tag }}
           format: sarif
