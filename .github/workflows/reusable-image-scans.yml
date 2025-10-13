@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       image_name_tag:
-        description: "Full image name:tag (e.g., user/my-app:sha)"
+        description: "Full image (e.g., user/my-app:sha)"
         required: true
         type: string
     secrets:
@@ -17,20 +17,16 @@ on:
 
 jobs:
   trivy_scan:
-    name: Trivy (Image & Config)
     runs-on: ubuntu-latest
     steps:
-      - name: Debug Image Tag Input
-        run: echo "Trivy scanning image: ${{ inputs.image_name_tag }}"
-
-      - name: Log in to Docker Hub
+      - name: Login to Docker
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Run Trivy Scan
-        uses: aquasecurity/trivy-action@master
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@v0.20.0
         with:
           image-ref: ${{ inputs.image_name_tag }}
           format: sarif
@@ -39,26 +35,22 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
 
-      - name: Upload Trivy results
+      - name: Upload Trivy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-results.sarif
 
   snyk_scan:
-    name: Snyk Container
     runs-on: ubuntu-latest
     steps:
-      - name: Debug Image Tag Input
-        run: echo "Snyk scanning image: ${{ inputs.image_name_tag }}"
-
-      - name: Log in to Docker Hub
+      - name: Login to Docker
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Run Snyk Container Scan
+      - name: Snyk Scan
         uses: snyk/actions/docker@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
