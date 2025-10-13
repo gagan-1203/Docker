@@ -44,12 +44,9 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
 
-      - name: Export Image Tag for Downstream Jobs
+      - name: Export Image Tag
         id: export_tag
-        run: echo "image_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
-
-      - name: Debug Image Tag
-        run: echo "Built image: ${{ steps.export_tag.outputs.image_tag }}"
+        run: echo "image_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
   image_scans:
     name: Image Security Scanners
