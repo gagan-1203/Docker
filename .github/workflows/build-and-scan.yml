@@ -48,8 +48,8 @@ jobs:
         id: build
         uses: docker/build-push-action@v5
         with:
-          context: ./first-container/app/ 
-          file: ${{ github.workspace }}/first-container/app/Dockerfile
+          context: ./first-container/ 
+          file: ${{ github.workspace }}/first-container/Dockerfile
           push: true # Push the built image to the registry for the next job to pull
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ steps.set_tag.outputs.IMAGE_TAG }}
           outputs: |
