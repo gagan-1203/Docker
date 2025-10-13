@@ -2,13 +2,12 @@ name: 1. Application Build and Security Gate
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
-  # Dependabot trigger for dependency updates
+    branches: ["main"]
   pull_request_target:
     types: [opened, synchronize, reopened]
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
   contents: read
@@ -16,20 +15,17 @@ permissions:
   actions: read
 
 jobs:
-  # 1️⃣ Code Scanning (SAST)
   sast_scan:
     name: CodeQL (SAST)
     uses: ./.github/workflows/reusable-codeql.yml
     secrets: inherit
 
-  # 2️⃣ Build and Push Docker Image
   build_image:
     name: Build Container
     needs: sast_scan
     runs-on: ubuntu-latest
     outputs:
       image_name_tag: ${{ steps.set_tag.outputs.IMAGE_TAG_FULL }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -42,9 +38,8 @@ jobs:
       - name: Set Image Tag
         id: set_tag
         run: |
-          echo "IMAGE_TAG=my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "IMAGE_TAG_FULL=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "Built Image Tag: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}"
+          echo "IMAGE_TAG=my-app:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE_TAG_FULL=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Build and Push Image
         uses: docker/build-push-action@v5
@@ -54,7 +49,6 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
 
-  # 3️⃣ Image Scanning (Trivy, Grype, Snyk)
   image_scans:
     name: Image Security Scanners
     needs: build_image
