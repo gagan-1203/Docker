@@ -57,7 +57,7 @@ jobs:
         run: echo "image_name_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
 
       - name: Debug Image Tag
-        run: echo "Built image: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}"
+        run: echo "Built image:${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}"
 
   # 3️⃣ Image Scanning
   image_scans:
