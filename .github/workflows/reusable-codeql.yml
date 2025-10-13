@@ -1,0 +1,27 @@
+name: Reusable CodeQL SAST Scan
+
+on:
+  workflow_call:
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    # Permissions are set at the caller level, but explicitly defining them is good practice
+    permissions:
+      contents: read
+      security-events: write 
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      # Initializes the CodeQL analysis (identifies languages, etc.)
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript # Adjust based on your primary language
+          
+      # Performs the actual static analysis
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
