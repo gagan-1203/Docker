@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Check for updates to the Dockerfile base image
+  - package-ecosystem: "docker"
+    # The context directory where your Dockerfile resides
+    directory: "/first-container/app"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "docker-update"
+      
+  # Check for updates to GitHub Actions versions used in workflows
+  - package-ecosystem: "github-actions"
+    directory: "/" # Look for workflow files in the root
+    schedule:
+      interval: "weekly"
+    labels:
+      - "deps-actions"
