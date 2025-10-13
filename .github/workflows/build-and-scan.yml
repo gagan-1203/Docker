@@ -55,11 +55,15 @@ jobs:
           outputs: |
             image_name_tag=${{ secrets.DOCKER_USERNAME }}/${{ steps.set_tag.outputs.IMAGE_TAG }}
             
-  # 3. Image Scanning - Runs in parallel with other tests/deployments (if any)
+# 3. Image Scanning - Runs in parallel with other tests/deployments (if any)
   image_scans:
     name: Image Security Scanners
     needs: build_image
     uses: ./.github/workflows/reusable-image-scans.yml # Calls the reusable scanning workflow
     with:
       image_name_tag: ${{ needs.build_image.outputs.image_name_tag }}
-    secrets: inherit # Pass environment secrets (SNYK_TOKEN, etc.)
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      # --- NEW LINES: Pass Docker Registry Credentials ---
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }} 
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
