@@ -3,7 +3,7 @@ updates:
   # Check for updates to the Dockerfile base image
   - package-ecosystem: "docker"
     # The context directory where your Dockerfile resides
-    directory: "/first-container/app"
+    directory: "/first-container/"
     schedule:
       interval: "daily"
     labels:
