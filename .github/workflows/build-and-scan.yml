@@ -42,7 +42,7 @@ jobs:
       - name: Set Image Tag
         id: set_tag
         run: |
-          TAG="v1.${GITHUB_REF_NAME}.${{ github.run_number }}"
+          TAG="v1.${{ github.ref_name }}.${{ github.run_number }}"
           echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
           echo "IMAGE_NAME_TAG=${{ secrets.DOCKER_USERNAME }}/my-app:$TAG" >> $GITHUB_OUTPUT
           echo "🟢 Using image tag: $TAG"
