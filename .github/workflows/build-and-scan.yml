@@ -41,7 +41,7 @@ jobs:
       - name: Set Image Tag
         id: set_tag
         run: |
-          echo "IMAGE_TAG=my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "IMAGE_TAG=v1.${GITHUB_REF##*/}.${{ github.run_number }}" >> $GITHUB_ENV
           echo "IMAGE_NAME_TAG=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
 
       - name: Build and Push Image
@@ -50,7 +50,7 @@ jobs:
           context: ./first-container/
           file: ./first-container/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/my-app:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/my-app:$IMAGE_TAG
 
       - name: Export Image Tag for Next Job
         id: export_tag
