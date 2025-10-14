@@ -22,7 +22,7 @@ jobs:
     secrets: inherit
 
    # 2️⃣ Build & Push Docker Image
-    build_image:
+  build_image:
     name: Build Container
     needs: sast_scan
     runs-on: ubuntu-latest
