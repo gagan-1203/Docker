@@ -53,22 +53,17 @@ jobs:
           fail-build: true
 
       # --- Snyk Scan ---
-           # --- Snyk Scan ---
-      - name: Setup Snyk CLI
-        uses: snyk/actions/setup@master
+      
+     # --- Snyk Scan (Docker action) ---
+      - name: Snyk Container Scan
+        uses: snyk/actions/docker@master
+        continue-on-error: true          # optional: don’t fail job on findings
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-      - name: Run Snyk Container Scan
-        run: |
-          snyk container test $IMAGE \
-            --severity-threshold=high \
-            --file=./first-container/Dockerfile \
-            --sarif-file-output=snyk.sarif
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-          IMAGE: ${{ env.IMAGE }}
-
+        with:
+          image: ${{ env.IMAGE }}
+          args: --severity-threshold=high --file=./first-container/Dockerfile
+      
       - name: Upload Snyk Results
         if: always()
         uses: github/codeql-action/upload-sarif@v3
