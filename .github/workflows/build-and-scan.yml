@@ -15,23 +15,19 @@ permissions:
   actions: read
 
 jobs:
-  # 1️⃣ SAST (CodeQL)
+  # 1️⃣ CodeQL (SAST)
   sast_scan:
     name: CodeQL (SAST)
     uses: ./.github/workflows/reusable-codeql.yml
     secrets: inherit
 
-   # 2️⃣ Build & Push Docker Image
+  # 2️⃣ Build & Push Docker Image
   build_image:
     name: Build Container
     needs: sast_scan
     runs-on: ubuntu-latest
-    outputs:
-      image_name_tag: ${{ steps.export_tag.outputs.image_name_tag }}
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -39,41 +35,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Set Image Tag
-        id: set_tag
-        run: |
-          TAG="v1.${{ github.ref_name }}.${{ github.run_number }}"
-          IMAGE_NAME="${{ secrets.DOCKER_USERNAME }}/my-app:${TAG}"
-          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
-          echo "IMAGE_NAME_TAG=$IMAGE_NAME" >> $GITHUB_ENV
-          echo "🟢 Using image tag: $IMAGE_NAME"
-
       - name: Build and Push Image
         uses: docker/build-push-action@v5
         with:
-          context: ./first-container/
+          context: ./first-container
           file: ./first-container/Dockerfile
           push: true
-          tags: ${{ env.IMAGE_NAME_TAG }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
 
-      - name: Export Image Tag for Next Job
-        id: export_tag
-        run: |
-          echo "image_name_tag=${IMAGE_NAME_TAG}" >> $GITHUB_OUTPUT
-          echo "📦 Exported image_name_tag=${IMAGE_NAME_TAG}"
-
-      - name: Debug Export Output
-        run: |
-          echo "✅ Final image_name_tag=${IMAGE_NAME_TAG}"
-
-  # 3️⃣ Image Scanning
+  # 3️⃣ Image Security Scanning
   image_scans:
     name: Image Security Scanners
     needs: build_image
     uses: ./.github/workflows/reusable-image-scans.yml
-    with:
-      image_name_tag: ${{ needs.build_image.outputs.image_name_tag }}
-    secrets:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    secrets: inherit
