@@ -53,6 +53,7 @@ jobs:
           fail-build: true
 
       # --- Snyk Scan ---
+           # --- Snyk Scan ---
       - name: Setup Snyk CLI
         uses: snyk/actions/setup@v3
         env:
@@ -60,7 +61,10 @@ jobs:
 
       - name: Run Snyk Container Scan
         run: |
-          snyk container test $IMAGE --severity-threshold=high --file=./first-container/Dockerfile --sarif-file-output=snyk.sarif
+          snyk container test $IMAGE \
+            --severity-threshold=high \
+            --file=./first-container/Dockerfile \
+            --sarif-file-output=snyk.sarif
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           IMAGE: ${{ env.IMAGE }}
