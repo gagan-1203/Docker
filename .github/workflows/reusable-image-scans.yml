@@ -45,7 +45,7 @@ jobs:
         run: docker pull ${{ env.IMAGE_NAME_TAG }}
 
       - name: Save Docker Image as Tarball
-        run: docker save ${{ inputs.image_name_tag }} -o image.tar
+        run: docker save ${{ env.IMAGE_NAME_TAG }} -o image.tar
 
       - name: Generate Cache Key
         id: cache_key
@@ -75,7 +75,7 @@ jobs:
       - name: Run Trivy Scan
         uses: aquasecurity/trivy-action@v0.20.0
         with:
-          image-ref: ${{ inputs.image_name_tag }}
+          image-ref: ${{ env.IMAGE_NAME_TAG }}
           format: sarif
           output: trivy-results.sarif
           scanners: vuln,misconfig,secret
@@ -106,7 +106,7 @@ jobs:
       - name: Run Grype Scan
         uses: anchore/scan-action@v3
         with:
-          image: ${{ inputs.image_name_tag }}
+          image: ${{ env.IMAGE_NAME_TAG }}
           fail-on-severity: high
 
   # 4️⃣ SNYK SCAN
@@ -129,7 +129,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ${{ inputs.image_name_tag }}
+          image: ${{ env.IMAGE_NAME_TAG }}
           args: --severity-threshold=high --sarif-file-output=snyk.sarif
 
       - name: Upload Snyk SARIF Report
