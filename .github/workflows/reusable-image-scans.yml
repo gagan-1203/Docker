@@ -33,7 +33,7 @@ jobs:
       
       # FIX: Explicitly pull the image locally
       - name: Pull Image for Trivy Scan
-        run: docker pull ${{ inputs.image_name_tag }}
+        run: docker pull ${{ secrets.DOCKER_USERNAME }}/my-app:latest
       
       - name: Checkout repository (needed for Trivy IaC/Dockerfile scan)
         uses: actions/checkout@v4
@@ -61,7 +61,7 @@ jobs:
           
       # FIX: Explicitly pull the image locally
       - name: Pull Image for Grype Scan
-        run: docker pull ${{ inputs.image_name_tag }}
+        run: docker pull ${{ secrets.DOCKER_USERNAME }}/my-app:latest
           
       - name: Run Grype Scan
         uses: anchore/scan-action@v3
@@ -83,7 +83,7 @@ jobs:
           
       # FIX: Explicitly pull the image locally
       - name: Pull Image for Snyk Scan
-        run: docker pull ${{ inputs.image_name_tag }}
+        run: docker pull ${{ secrets.DOCKER_USERNAME }}/my-app:latest
           
       - name: Run Snyk Container Scan
         uses: snyk/actions/docker@master
