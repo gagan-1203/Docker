@@ -44,7 +44,7 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-      # --- Grype Scan ---
+            # --- Grype Scan ---
       - name: Grype Image Scan
         uses: anchore/scan-action@v3
         with:
@@ -53,13 +53,17 @@ jobs:
           fail-build: true
 
       # --- Snyk Scan ---
-      - name: Snyk Container Scan
-        uses: snyk/actions/docker@master
+      - name: Setup Snyk CLI
+        uses: snyk/actions/setup@v3
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          image: ${{ env.IMAGE }}
-          args: test --severity-threshold=high --sarif-file-output=snyk.sarif
+
+      - name: Run Snyk Container Scan
+        run: |
+          snyk container test $IMAGE --severity-threshold=high --file=./first-container/Dockerfile --sarif-file-output=snyk.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          IMAGE: ${{ env.IMAGE }}
 
       - name: Upload Snyk Results
         if: always()
