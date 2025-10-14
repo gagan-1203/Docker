@@ -21,7 +21,7 @@ jobs:
     uses: ./.github/workflows/reusable-codeql.yml
     secrets: inherit
 
-  # 2️⃣ Build & Push Docker Image
+   # 2️⃣ Build & Push Docker Image
   build_image:
     name: Build Container
     needs: sast_scan
@@ -44,7 +44,6 @@ jobs:
         run: |
           TAG="v1.${{ github.ref_name }}.${{ github.run_number }}"
           echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
-          echo "IMAGE_NAME_TAG=${{ secrets.DOCKER_USERNAME }}/my-app:$TAG" >> $GITHUB_OUTPUT
           echo "🟢 Using image tag: $TAG"
 
       - name: Build and Push Image
@@ -57,7 +56,11 @@ jobs:
 
       - name: Export Image Tag for Next Job
         id: export_tag
-        run: echo "image_name_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+        run: |
+          # reload environment file so we can access IMAGE_TAG reliably
+          source $GITHUB_ENV
+          echo "image_name_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "📦 Exported for next job: ${{ secrets.DOCKER_USERNAME }}/my-app:${IMAGE_TAG}"
 
       - name: Debug Image Tag
         run: echo "✅ Built and pushed image:${{ secrets.DOCKER_USERNAME }}/my-app:${{ env.IMAGE_TAG }}"
