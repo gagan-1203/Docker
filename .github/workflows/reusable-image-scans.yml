@@ -25,28 +25,33 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       cache-key: ${{ steps.cache_key.outputs.key }}
+      image_name_tag: ${{ steps.set_out.outputs.image_name_tag }}   # <-- pass IMAGE to other jobs
     steps:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      - name: Set Image Tag
-        id: set_tag
+
+      # Keep your "Set Image Tag" concept, but bind it to the INPUT (no recompute)
+      - name: Set Image Tag (from input)
+        id: set_env
         run: |
-          TAG="v1.${{ github.ref_name }}.${{ github.run_number }}"
-          IMAGE_NAME="${{ secrets.DOCKER_USERNAME }}/my-app:${TAG}"
-          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
-          echo "IMAGE_NAME_TAG=$IMAGE_NAME" >> $GITHUB_ENV
-          echo "🟢 Using image tag: $IMAGE_NAME"
-      
-      - name: Pull Image
-        run: docker pull ${{ env.IMAGE_NAME_TAG }}
+          echo "IMAGE_NAME_TAG=${{ inputs.image_name_tag }}" >> $GITHUB_ENV
+          echo "🟢 Using image: ${{ inputs.image_name_tag }}"
+
+      # Also expose it as a job OUTPUT for downstream jobs
+      - name: Set job output
+        id: set_out
+        run: echo "image_name_tag=${IMAGE_NAME_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Pull Image (once)
+        run: docker pull "${IMAGE_NAME_TAG}"
 
       - name: Save Docker Image as Tarball
-        run: docker save ${{ env.IMAGE_NAME_TAG }} -o image.tar
+        run: docker save "${IMAGE_NAME_TAG}" -o image.tar
 
+      # Safe cache key (hash of tar) so colons in tags never break cache
       - name: Generate Cache Key
         id: cache_key
         run: echo "key=image-${{ hashFiles('image.tar') }}" >> $GITHUB_OUTPUT
@@ -75,7 +80,7 @@ jobs:
       - name: Run Trivy Scan
         uses: aquasecurity/trivy-action@v0.20.0
         with:
-          image-ref: ${{ env.IMAGE_NAME_TAG }}
+          image-ref: ${{ needs.pull_image.outputs.image_name_tag }}
           format: sarif
           output: trivy-results.sarif
           scanners: vuln,misconfig,secret
@@ -106,7 +111,7 @@ jobs:
       - name: Run Grype Scan
         uses: anchore/scan-action@v3
         with:
-          image: ${{ env.IMAGE_NAME_TAG }}
+          image: ${{ needs.pull_image.outputs.image_name_tag }}
           fail-on-severity: high
 
   # 4️⃣ SNYK SCAN
@@ -129,7 +134,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ${{ env.IMAGE_NAME_TAG }}
+          image: ${{ needs.pull_image.outputs.image_name_tag }}
           args: --severity-threshold=high --sarif-file-output=snyk.sarif
 
       - name: Upload Snyk SARIF Report
