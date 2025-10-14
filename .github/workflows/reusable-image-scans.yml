@@ -18,14 +18,12 @@ jobs:
       IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
 
     steps:
-      # Log in to registry
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Pull the image that was just pushed
       - name: Pull Built Image
         run: docker pull "$IMAGE"
 
@@ -38,7 +36,6 @@ jobs:
           output: trivy-results.sarif
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
-          # Use "0" to avoid failing the workflow if vulnerabilities exist
           exit-code: "0"
 
       - name: Upload Trivy Results
@@ -52,7 +49,8 @@ jobs:
         uses: anchore/scan-action@v3
         with:
           image: ${{ env.IMAGE }}
-          fail-on-severity: high
+          severity-cutoff: high
+          fail-build: true
 
       # --- Snyk Scan ---
       - name: Snyk Container Scan
@@ -61,7 +59,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: ${{ env.IMAGE }}
-          args: --severity-threshold=high --sarif-file-output=snyk.sarif
+          args: test --severity-threshold=high --sarif-file-output=snyk.sarif
 
       - name: Upload Snyk Results
         if: always()
