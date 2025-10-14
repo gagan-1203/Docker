@@ -43,6 +43,7 @@ jobs:
         run: |
           echo "IMAGE_TAG=v1.${GITHUB_REF##*/}.${{ github.run_number }}" >> $GITHUB_ENV
           echo "IMAGE_NAME_TAG=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo $IMAGE_TAG
 
       - name: Build and Push Image
         uses: docker/build-push-action@v5
