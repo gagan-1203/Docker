@@ -55,7 +55,7 @@ jobs:
       # --- Snyk Scan ---
            # --- Snyk Scan ---
       - name: Setup Snyk CLI
-        uses: snyk/actions/docker@master
+        uses: snyk/actions/setup@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
