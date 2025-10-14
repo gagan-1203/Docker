@@ -50,7 +50,7 @@ jobs:
           context: ./first-container/
           file: ./first-container/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/my-app:latest
 
       - name: Export Image Tag for Next Job
         id: export_tag
