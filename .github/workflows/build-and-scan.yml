@@ -38,12 +38,14 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # Create versioned image tag and export for later steps
       - name: Set Image Tag
         id: set_tag
         run: |
-          echo "IMAGE_TAG=v1.${GITHUB_REF##*/}.${{ github.run_number }}" >> $GITHUB_ENV
-          echo "IMAGE_NAME_TAG=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo $IMAGE_TAG
+          TAG="v1.${GITHUB_REF_NAME}.${{ github.run_number }}"
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+          echo "IMAGE_NAME_TAG=${{ secrets.DOCKER_USERNAME }}/my-app:$TAG" >> $GITHUB_OUTPUT
+          echo "Using image tag: $TAG"
 
       - name: Build and Push Image
         uses: docker/build-push-action@v5
@@ -51,14 +53,14 @@ jobs:
           context: ./first-container/
           file: ./first-container/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/my-app:$IMAGE_TAG
+          tags: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ env.IMAGE_TAG }}
 
       - name: Export Image Tag for Next Job
         id: export_tag
-        run: echo "image_name_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
+        run: echo "image_name_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
 
       - name: Debug Image Tag
-        run: echo "Built image:${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}"
+        run: echo "✅ Built and pushed image: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ env.IMAGE_TAG }}"
 
   # 3️⃣ Image Scanning
   image_scans:
