@@ -2,142 +2,68 @@ name: Reusable Container Image Security Scans
 
 on:
   workflow_call:
-    inputs:
-      image_name_tag:
-        description: "The full name:tag of the container image to scan."
-        required: true
-        type: string
     secrets:
       SNYK_TOKEN:
-        description: "Snyk API Token"
         required: true
       DOCKER_USERNAME:
-        description: "Docker Registry Username"
         required: true
       DOCKER_PASSWORD:
-        description: "Docker Registry Password/Token"
         required: true
 
 jobs:
-  # 1️⃣ PULL IMAGE (shared for all scanners)
-  pull_image:
-    name: Pull and Save Docker Image
+  scans:
+    name: Trivy + Grype + Snyk Scans
     runs-on: ubuntu-latest
-    outputs:
-      cache-key: ${{ steps.cache_key.outputs.key }}
-      image_name_tag: ${{ steps.set_out.outputs.image_name_tag }}   # <-- pass IMAGE to other jobs
+    env:
+      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
+
     steps:
+      # Log in to registry
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Keep your "Set Image Tag" concept, but bind it to the INPUT (no recompute)
-      - name: Set Image Tag (from input)
-        id: set_env
-        run: |
-          echo "IMAGE_NAME_TAG=${{ inputs.image_name_tag }}" >> $GITHUB_ENV
-          echo "🟢 Using image: ${{ inputs.image_name_tag }}"
+      # Pull the image that was just pushed
+      - name: Pull Built Image
+        run: docker pull "$IMAGE"
 
-      # Also expose it as a job OUTPUT for downstream jobs
-      - name: Set job output
-        id: set_out
-        run: echo "image_name_tag=${IMAGE_NAME_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Pull Image (once)
-        run: docker pull "${IMAGE_NAME_TAG}"
-
-      - name: Save Docker Image as Tarball
-        run: docker save "${IMAGE_NAME_TAG}" -o image.tar
-
-      # Safe cache key (hash of tar) so colons in tags never break cache
-      - name: Generate Cache Key
-        id: cache_key
-        run: echo "key=image-${{ hashFiles('image.tar') }}" >> $GITHUB_OUTPUT
-
-      - name: Cache Docker Image
-        uses: actions/cache@v4
-        with:
-          path: image.tar
-          key: ${{ steps.cache_key.outputs.key }}
-
-  # 2️⃣ TRIVY SCAN
-  trivy_scan:
-    name: Trivy (Vulnerability, Misconfig, Secret)
-    runs-on: ubuntu-latest
-    needs: pull_image
-    steps:
-      - name: Restore Cached Image
-        uses: actions/cache@v4
-        with:
-          path: image.tar
-          key: ${{ needs.pull_image.outputs.cache-key }}
-
-      - name: Load Docker Image
-        run: docker load -i image.tar
-
-      - name: Run Trivy Scan
+      # --- Trivy Scan ---
+      - name: Trivy Image Scan
         uses: aquasecurity/trivy-action@v0.20.0
         with:
-          image-ref: ${{ needs.pull_image.outputs.image_name_tag }}
+          image-ref: ${{ env.IMAGE }}
           format: sarif
           output: trivy-results.sarif
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
+          # Use "0" to avoid failing the workflow if vulnerabilities exist
           exit-code: "0"
 
-      - name: Upload Trivy SARIF Report
+      - name: Upload Trivy Results
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-results.sarif
 
-  # 3️⃣ GRYPE SCAN
-  grype_scan:
-    name: Grype (Vulnerability)
-    runs-on: ubuntu-latest
-    needs: pull_image
-    steps:
-      - name: Restore Cached Image
-        uses: actions/cache@v4
-        with:
-          path: image.tar
-          key: ${{ needs.pull_image.outputs.cache-key }}
-
-      - name: Load Docker Image
-        run: docker load -i image.tar
-
-      - name: Run Grype Scan
+      # --- Grype Scan ---
+      - name: Grype Image Scan
         uses: anchore/scan-action@v3
         with:
-          image: ${{ needs.pull_image.outputs.image_name_tag }}
+          image: ${{ env.IMAGE }}
           fail-on-severity: high
 
-  # 4️⃣ SNYK SCAN
-  snyk_scan:
-    name: Snyk Container
-    runs-on: ubuntu-latest
-    needs: pull_image
-    steps:
-      - name: Restore Cached Image
-        uses: actions/cache@v4
-        with:
-          path: image.tar
-          key: ${{ needs.pull_image.outputs.cache-key }}
-
-      - name: Load Docker Image
-        run: docker load -i image.tar
-
-      - name: Run Snyk Container Scan
+      # --- Snyk Scan ---
+      - name: Snyk Container Scan
         uses: snyk/actions/docker@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ${{ needs.pull_image.outputs.image_name_tag }}
+          image: ${{ env.IMAGE }}
           args: --severity-threshold=high --sarif-file-output=snyk.sarif
 
-      - name: Upload Snyk SARIF Report
+      - name: Upload Snyk Results
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
