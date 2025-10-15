@@ -27,7 +27,7 @@ jobs:
         run: echo "full_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v3 # Using stable v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -39,7 +39,7 @@ jobs:
         run: docker save ${{ steps.set_image_name.outputs.full_tag }} -o "$IMAGE_TAR_NAME"
 
       - name: Upload Image Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4 # Using stable v4
         with:
           name: container-image
           path: ${{ env.IMAGE_TAR_NAME }}
@@ -67,11 +67,11 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Trivy Image Scan
-        uses: aquasecurity/trivy-action@v0.12.0
+        uses: aquasecurity/trivy-action@master # Using master or latest stable tag like @0.12.0
         with:
           image-ref: ${{ needs.prepare_image.outputs.image_tag }}
           format: sarif
-          output: ${{ env.SARIF_DIR }}/trivy-results.sarif # Output to common directory
+          output: ${{ env.SARIF_DIR }}/trivy-results.sarif
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
           exit-code: "0"
@@ -80,8 +80,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: trivy-sarif # Unique artifact name
-          path: ${{ env.SARIF_DIR }}/trivy-results.sarif
+          name: trivy-sarif
+          path: ${{ env.SARIF_DIR }}/*.sarif
 
   # 3. GRYPE SCAN JOB: Scan and upload SARIF artifact
   grype_scan:
@@ -103,12 +103,12 @@ jobs:
           docker load -i "$IMAGE_TAR_NAME"
           mkdir -p ${{ env.SARIF_DIR }}
 
-      - name: Grype Image Scan (CLI for SARIF)
+      - name: Install Grype CLI
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      # Run Grype using the installed binary and the loaded image tag
+      - name: Run Grype Image Scan
         run: |
-          # Install Grype CLI
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-          
-          # Run Grype, output SARIF to common directory
           grype \
             -o sarif \
             --file ${{ env.SARIF_DIR }}/grype-results.sarif \
@@ -119,14 +119,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: grype-sarif # Unique artifact name
-          path: ${{ env.SARIF_DIR }}/grype-results.sarif
+          name: grype-sarif
+          path: ${{ env.SARIF_DIR }}/*.sarif
 
   # 4. SNYK SCAN JOB: Scan and upload SARIF artifact
   snyk_scan:
     name: Snyk Scan
     needs: prepare_image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     env:
       IMAGE_TAR_NAME: image.tar
       SARIF_DIR: sarif-outputs
@@ -145,31 +148,31 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Snyk Container Scan
-        uses: snyk/actions/docker@v3
+        # Updated to use v3 which should resolve the action resolution error
+        uses: snyk/actions/docker@v3 
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: ${{ needs.prepare_image.outputs.image_tag }}
-          # Snyk must be told where to output the SARIF file
           args: --severity-threshold=high --file=./first-container/Dockerfile --sarif --sarif-file-output=${{ env.SARIF_DIR }}/snyk.sarif
           
       - name: Upload Snyk SARIF Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: snyk-sarif # Unique artifact name
-          path: ${{ env.SARIF_DIR }}/snyk.sarif
+          name: snyk-sarif
+          path: ${{ env.SARIF_DIR }}/*.sarif
 
   # 5. UPLOAD CONSOLIDATED RESULTS
   upload_consolidated_sarif:
     name: Upload Consolidated SARIF
-    # Wait for all scan jobs to complete and produce their SARIF artifacts
+    # Needs all scan jobs to complete
     needs: [trivy_scan, grype_scan, snyk_scan]
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write # Critical permission for uploading results
+      security-events: write
       
     steps:
       # Download all SARIF artifacts into a single directory named 'sarif-outputs'
@@ -177,11 +180,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: sarif-outputs 
-          pattern: "*-sarif" # Downloads artifacts named trivy-sarif, grype-sarif, and snyk-sarif
-          merge-multiple: true # Combines the contents of all artifacts into the target path
+          pattern: "*-sarif" # Matches trivy-sarif, grype-sarif, and snyk-sarif
+          merge-multiple: true # Combines the contents of all artifacts into the target path (sarif-outputs)
 
       # This step uploads ALL .sarif files found in the specified directory.
-      # GitHub Code Scanning handles the cross-tool deduplication internally.
+      # GitHub Code Scanning handles the cross-tool deduplication.
       - name: Upload Consolidated Results to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
         with:
