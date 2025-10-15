@@ -156,7 +156,7 @@ jobs:
       - name: Snyk Container Scan (via Docker CLI for reliable SARIF output)
         # Using a direct docker run guarantees the SARIF file is written to the mounted host volume.
         run: |
-        docker run --rm \
+          docker run --rm \
           -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
           -v ${{ github.workspace }}:/app \
           snyk/snyk:docker \
