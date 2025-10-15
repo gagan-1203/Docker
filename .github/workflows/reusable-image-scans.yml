@@ -51,9 +51,11 @@ jobs:
     name: Trivy Scan
     needs: prepare_image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
-      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
+      SARIF_DIR: sarif-outputs # Define directory for SARIF output
 
     steps:
       - name: Download Image Artifact
@@ -61,28 +63,32 @@ jobs:
         with:
           name: container-image
 
-      - name: Load Image from Tar
-        # Load the image back into the runner's Docker daemon
-        run: docker load -i "$IMAGE_TAR_NAME"
-        
+      - name: Load Image from Tar & Create SARIF Directory
+        run: |
+          # Load the image back into the runner's Docker daemon
+          docker load -i "$IMAGE_TAR_NAME"
+          mkdir -p ${{ env.SARIF_DIR }}
+
       # --- Trivy Scan ---
       - name: Trivy Image Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE }}
+          # Use direct output access
+          image-ref: ${{ needs.prepare_image.outputs.image_tag }}
           format: sarif
-          output: trivy-results.sarif
+          # Output to the defined SARIF directory
+          output: ${{ env.SARIF_DIR }}/trivy-results.sarif
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
           exit-code: "0"
-          # Added to suppress the version check notice
-          args: --skip-version-check 
+          # NOTE: Removed 'args: --skip-version-check' as aquasecurity/trivy-action@master does not support it directly
 
       - name: Upload Trivy SARIF Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: trivy-sarif
+          # FIX: Reference the full output path
           path: ${{ env.SARIF_DIR }}/*.sarif
 
   # 3. GRYPE SCAN JOB: Scan and upload SARIF artifact
@@ -92,8 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE_TAR_NAME: image.tar
-      SARIF_DIR: sarif-outputs
-      # IMAGE_REF environment variable removed. Using direct output access in 'with'.
+      SARIF_DIR: sarif-outputs # Define directory for SARIF output
 
     steps:
       - name: Check Image Reference Resolution
@@ -111,12 +116,14 @@ jobs:
       - name: Run Grype Image Scan
         uses: anchore/scan-action@v3
         with:
-          # FIX: Pass needs output directly to action input
           image: ${{ needs.prepare_image.outputs.image_tag }}
           output-format: sarif
-          fail-on-severity: high 
+          # FIX: Use the supported input name 'severity-cutoff'
+          severity-cutoff: high 
+          fail-build: false # Ensure SARIF file is created even if issues are found
           
       - name: Move Grype SARIF Output
+        # anchore/scan-action outputs to results.sarif, move it to the correct dir for consolidation
         run: mv ${{ github.workspace }}/results.sarif ${{ env.SARIF_DIR }}/grype-results.sarif
 
       - name: Upload Grype SARIF Artifact
@@ -136,8 +143,7 @@ jobs:
       security-events: write
     env:
       IMAGE_TAR_NAME: image.tar
-      SARIF_DIR: sarif-outputs
-      # IMAGE_REF environment variable removed. Using direct output access in 'with'.
+      SARIF_DIR: sarif-outputs # Define directory for SARIF output
 
     steps:
       - uses: actions/checkout@v4 
@@ -157,8 +163,8 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          # FIX: Pass needs output directly to action input
           image: ${{ needs.prepare_image.outputs.image_tag }}
+          # Ensure SARIF output goes to the correct directory
           args: --severity-threshold=high --file=./first-container/Dockerfile --sarif --sarif-file-output=${{ env.SARIF_DIR }}/snyk.sarif
           
       - name: Upload Snyk SARIF Artifact
@@ -181,6 +187,7 @@ jobs:
       - name: Download All SARIF Artifacts
         uses: actions/download-artifact@v4
         with:
+          # Download all artifacts into one path
           path: sarif-outputs
           pattern: "*-sarif"
           merge-multiple: true
@@ -188,4 +195,5 @@ jobs:
       - name: Upload Consolidated Results to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
         with:
+          # Point the uploader to the merged directory, which contains all SARIF files
           sarif_file: sarif-outputs
