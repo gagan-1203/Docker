@@ -137,7 +137,8 @@ jobs:
     env:
       IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
-      SARIF_DIR: sarif-outputs 
+      SARIF_DIR: sarif-outputs
+      SNYK_OUTPUT_PATH: sarif-outputs/snyk.sarif
 
     steps:
       - uses: actions/checkout@v4 
