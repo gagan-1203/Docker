@@ -152,34 +152,32 @@ jobs:
           docker load -i "$IMAGE_TAR_NAME"
           mkdir -p ${{ env.SARIF_DIR }}
 
-      - name: Snyk Container Scan
-        uses: snyk/actions/docker@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          image: ${{ env.IMAGE }} 
-         # Use simple filename to output to the workspace root
-          args: --severity-threshold=high --file=./first-container/Dockerfile --sarif --sarif-file-output=${{ env.SNYK_SARIF_FILE }}
-          
-      - name: Move Snyk SARIF Output
-        # FIX: Switched to robust shell environment variable syntax ($VAR)
-        # to ensure the file is correctly referenced and moved.
+      - name: Snyk Container Scan (via Docker CLI for reliable SARIF output)
+        # FIX: Directly run the Snyk CLI with explicit volume mapping.
+        # This guarantees the file is written to the host's ${{ github.workspace }}/sarif-outputs directory.
         run: |
-          if [ -f "$SNYK_SARIF_FILE" ]; then
-            mv "$SNYK_SARIF_FILE" "$SARIF_DIR/$SNYK_SARIF_FILE"
-          else
-            echo "Error: Snyk SARIF file was not found in the workspace root. Review Snyk scan logs."
-            exit 1
-          fi
-
+          docker run --rm \
+            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+            -v ${{ github.workspace }}:/app \
+            snyk/snyk:docker \
+            snyk test \
+              --docker \
+              --severity-threshold=high \
+              --file=./first-container/Dockerfile \
+              --sarif \
+              --sarif-file-output=/app/${{ env.SNYK_OUTPUT_PATH }} \
+              ${{ env.IMAGE }}
+        # The scan output path is now explicitly set to a path inside the mounted /app directory,
+        # which maps to the host's ${{ github.workspace }}.
+        continue-on-error: true
+          
       - name: Upload Snyk SARIF Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: snyk-sarif
+          # Upload using the final, guaranteed path on the host runner.
           path: ${{ env.SARIF_DIR }}/${{ env.SNYK_SARIF_FILE }}
-
   # 5. UPLOAD CONSOLIDATED RESULTS
   upload_consolidated_sarif:
     name: Upload Consolidated SARIF
