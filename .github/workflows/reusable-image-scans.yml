@@ -56,7 +56,7 @@ jobs:
     env:
       IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
-      SARIF_DIR: sarif-outputs # FIX: Added SARIF_DIR
+      SARIF_DIR: sarif-outputs # ADDED: Define SARIF_DIR
 
     steps:
       - name: Download Image Artifact
@@ -66,7 +66,7 @@ jobs:
 
       - name: Load Image from Tar & Create SARIF Directory
         # Load the image back into the runner's Docker daemon
-        # FIX: Explicitly create the SARIF directory
+        # MODIFIED: Combined step and added mkdir to create the output directory
         run: |
           docker load -i "$IMAGE_TAR_NAME"
           mkdir -p ${{ env.SARIF_DIR }}
@@ -76,7 +76,7 @@ jobs:
         with:
           image-ref: ${{ env.IMAGE }}
           format: sarif
-          output: ${{ env.SARIF_DIR }}/trivy-results.sarif # FIX: Changed output path to use SARIF_DIR
+          output: ${{ env.SARIF_DIR }}/trivy-results.sarif # MODIFIED: Use SARIF_DIR
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
           exit-code: "0"
@@ -86,8 +86,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: trivy-sarif
-          # FIX: Reference the specific output file path
-          path: ${{ env.SARIF_DIR }}/trivy-results.sarif 
+          path: ${{ env.SARIF_DIR }}/trivy-results.sarif # MODIFIED: Use specific filename
 
   # 3. GRYPE SCAN JOB: Scan and upload SARIF artifact
   grype_scan:
@@ -116,7 +115,7 @@ jobs:
         with:
           image: ${{ needs.prepare_image.outputs.image_tag }}
           output-format: sarif
-          severity-cutoff: high 
+          severity-cutoff: low # MODIFIED: Changed to 'low' to ensure all findings are visible
           fail-build: false
           
       - name: Move Grype SARIF Output
@@ -140,7 +139,7 @@ jobs:
     env:
       IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
-      SARIF_DIR: sarif-outputs # FIX: Added SARIF_DIR
+      SARIF_DIR: sarif-outputs # ADDED: Define SARIF_DIR
 
     steps:
       - uses: actions/checkout@v4 
@@ -151,7 +150,7 @@ jobs:
           name: container-image
 
       - name: Load Image from Tar & Create SARIF Directory
-        # FIX: Explicitly create the SARIF directory
+        # MODIFIED: Combined step and added mkdir to create the output directory
         run: |
           docker load -i "$IMAGE_TAR_NAME"
           mkdir -p ${{ env.SARIF_DIR }}
@@ -162,7 +161,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ${{ env.IMAGE }}
+          image: ${{ needs.prepare_image.outputs.image_tag }} # MODIFIED: Use cross-job output for robustness
           args: --severity-threshold=high --file=./first-container/Dockerfile --sarif --sarif-file-output=${{ env.SARIF_DIR }}/snyk.sarif
           
       - name: Upload Snyk SARIF Artifact
@@ -170,8 +169,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: snyk-sarif
-          # FIX: Reference the specific output file path
-          path: ${{ env.SARIF_DIR }}/snyk.sarif
+          path: ${{ env.SARIF_DIR }}/snyk.sarif # MODIFIED: Use specific filename
 
   # 5. UPLOAD CONSOLIDATED RESULTS
   upload_consolidated_sarif:
