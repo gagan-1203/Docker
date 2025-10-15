@@ -11,11 +11,13 @@ on:
         required: true
 
 jobs:
-  scans:
-    name: Trivy + Grype + Snyk Scans
+  # 1. PULL IMAGE ONCE AND SAVE AS ARTIFACT
+  prepare_image:
+    name: Prepare Image Artifact
     runs-on: ubuntu-latest
     env:
       IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
+      IMAGE_TAR_NAME: image.tar
 
     steps:
       - name: Log in to Docker Hub
@@ -25,7 +27,38 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Pull Built Image
+        # The image is pulled and loaded into the runner's Docker daemon
         run: docker pull "$IMAGE"
+
+      - name: Save Image to Tar for Artifact
+        # Save the pulled image to a local .tar file
+        run: docker save "$IMAGE" -o "$IMAGE_TAR_NAME"
+
+      - name: Upload Image Artifact
+        # Upload the .tar file so other jobs can access it
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-image
+          path: ${{ env.IMAGE_TAR_NAME }}
+
+  # 2. TRIVY SCAN JOB (uses artifact)
+  trivy_scan:
+    name: Trivy Scan
+    needs: prepare_image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
+      IMAGE_TAR_NAME: image.tar
+
+    steps:
+      - name: Download Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: container-image
+
+      - name: Load Image from Tar
+        # Load the image back into the runner's Docker daemon
+        run: docker load -i "$IMAGE_TAR_NAME"
 
       # --- Trivy Scan ---
       - name: Trivy Image Scan
@@ -44,7 +77,25 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-            # --- Grype Scan ---
+  # 3. GRYPE SCAN JOB (uses artifact)
+  grype_scan:
+    name: Grype Scan
+    needs: prepare_image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
+      IMAGE_TAR_NAME: image.tar
+
+    steps:
+      - name: Download Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: container-image
+
+      - name: Load Image from Tar
+        run: docker load -i "$IMAGE_TAR_NAME"
+
+      # --- Grype Scan ---
       - name: Grype Image Scan
         uses: anchore/scan-action@v3
         with:
@@ -52,19 +103,37 @@ jobs:
           severity-cutoff: high
           fail-build: true
 
-      # --- Snyk Scan ---
-      
-     # --- Snyk Scan (Docker action) ---
+  # 4. SNYK SCAN JOB (uses artifact, includes fix)
+  snyk_scan:
+    name: Snyk Scan
+    needs: prepare_image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
+      IMAGE_TAR_NAME: image.tar
+
+    steps:
+      - uses: actions/checkout@v4 # Required to access the Dockerfile path in the repository
+        
+      - name: Download Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: container-image
+
+      - name: Load Image from Tar
+        run: docker load -i "$IMAGE_TAR_NAME"
+
+      # --- Snyk Scan (Docker action) ---
       - name: Snyk Container Scan
         uses: snyk/actions/docker@master
-        continue-on-error: true          # optional: don’t fail job on findings
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: ${{ env.IMAGE }}
-          args: --severity-threshold=high --file=./first-container/Dockerfile --sarif-file-output=snyk.sarif
-          sarif: true
-          
+          args: --severity-threshold=high --file=./first-container/Dockerfile
+          sarif: true # FIX: This setting tells the Snyk action to generate the snyk.sarif file
+      
       - name: Upload Snyk Results
         if: always()
         uses: github/codeql-action/upload-sarif@v3
