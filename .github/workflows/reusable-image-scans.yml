@@ -16,7 +16,6 @@ jobs:
     name: Prepare Image Artifact
     runs-on: ubuntu-latest
     outputs:
-      # Expose the full image tag for use in subsequent scan jobs
       image_tag: ${{ steps.set_image_name.outputs.full_tag }}
     env:
       IMAGE_TAR_NAME: image.tar
@@ -27,7 +26,7 @@ jobs:
         run: |
           FULL_TAG=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
           echo "full_tag=$FULL_TAG" >> $GITHUB_OUTPUT
-          echo "Image Tag is: $FULL_TAG" # Debug: Print the resolved tag
+          echo "Image Tag is: $FULL_TAG" 
           
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -57,13 +56,12 @@ jobs:
     env:
       IMAGE_TAR_NAME: image.tar
       SARIF_DIR: sarif-outputs
-      # The resolved image tag is set as a job environment variable
-      IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
+      # IMAGE_REF environment variable removed. Using direct output access in 'with'.
 
     steps:
-      # TRIVY DEBUG STEP: Check image tag resolution
       - name: Check Image Reference Resolution
-        run: echo "Trivy IMAGE_REF is set to:${{ env.IMAGE_REF }}"
+        # Logging to confirm the variable is available
+        run: echo "Trivy will use image:${{ needs.prepare_image.outputs.image_tag }}"
         
       - name: Download & Load Image Artifact
         uses: actions/download-artifact@v4
@@ -75,16 +73,17 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Trivy Image Scan
-        # Using the version you confirmed works for resolution
         uses: aquasecurity/trivy-action@master
         with:
-          # This should now correctly resolve to the full tag
-          image-ref: ${{ env.IMAGE_REF }} 
+          # FIX: Pass needs output directly to action input
+          image-ref: ${{ needs.prepare_image.outputs.image_tag }} 
           format: sarif
           output: ${{ env.SARIF_DIR }}/trivy-results.sarif
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
           exit-code: "0"
+          # Added to suppress the version check notice
+          args: --skip-version-check 
 
       - name: Upload Trivy SARIF Artifact
         if: always()
@@ -101,12 +100,11 @@ jobs:
     env:
       IMAGE_TAR_NAME: image.tar
       SARIF_DIR: sarif-outputs
-      IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
+      # IMAGE_REF environment variable removed. Using direct output access in 'with'.
 
     steps:
-      # GRYPE DEBUG STEP: Check image tag resolution
       - name: Check Image Reference Resolution
-        run: echo "Grype IMAGE_REF is set to:${{ env.IMAGE_REF }}"
+        run: echo "Grype will use image: ${{ needs.prepare_image.outputs.image_tag }}"
         
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
@@ -117,16 +115,15 @@ jobs:
           docker load -i "$IMAGE_TAR_NAME"
           mkdir -p ${{ env.SARIF_DIR }}
 
-      # FIX: Using the correct, official action for Grype scanning
       - name: Run Grype Image Scan
-        uses: anchore/scan-action@v3 
+        uses: anchore/scan-action@v3
         with:
-          image: ${{ env.IMAGE_REF }}
+          # FIX: Pass needs output directly to action input
+          image: ${{ needs.prepare_image.outputs.image_tag }}
           output-format: sarif
           fail-on-severity: high 
           
       - name: Move Grype SARIF Output
-        # anchore/scan-action outputs to results.sarif, move it to the correct dir for consolidation
         run: mv ${{ github.workspace }}/results.sarif ${{ env.SARIF_DIR }}/grype-results.sarif
 
       - name: Upload Grype SARIF Artifact
@@ -147,7 +144,7 @@ jobs:
     env:
       IMAGE_TAR_NAME: image.tar
       SARIF_DIR: sarif-outputs
-      IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
+      # IMAGE_REF environment variable removed. Using direct output access in 'with'.
 
     steps:
       - uses: actions/checkout@v4 
@@ -162,12 +159,13 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Snyk Container Scan
-        uses: snyk/actions/docker@master 
+        uses: snyk/actions/docker@master
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ${{ env.IMAGE_REF }}
+          # FIX: Pass needs output directly to action input
+          image: ${{ needs.prepare_image.outputs.image_tag }}
           args: --severity-threshold=high --file=./first-container/Dockerfile --sarif --sarif-file-output=${{ env.SARIF_DIR }}/snyk.sarif
           
       - name: Upload Snyk SARIF Artifact
@@ -190,7 +188,7 @@ jobs:
       - name: Download All SARIF Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: sarif-outputs 
+          path: sarif-outputs
           pattern: "*-sarif"
           merge-multiple: true
 
