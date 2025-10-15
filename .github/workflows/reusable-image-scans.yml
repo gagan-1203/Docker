@@ -16,13 +16,11 @@ jobs:
     name: Prepare Image Artifact
     runs-on: ubuntu-latest
     outputs:
-      # Expose the full image tag for use in subsequent scan jobs
       image_tag: ${{ steps.set_image_name.outputs.full_tag }}
     env:
       IMAGE_TAR_NAME: image.tar
 
     steps:
-      # Fix 1 Part A: Explicitly set the full image tag as a step output
       - name: Set Image Tag Output
         id: set_image_name
         run: echo "full_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
@@ -34,7 +32,6 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Pull Built Image
-        # Use the variable from the previous step output directly
         run: docker pull ${{ steps.set_image_name.outputs.full_tag }}
 
       - name: Save Image to Tar for Artifact
@@ -56,11 +53,9 @@ jobs:
     env:
       IMAGE_TAR_NAME: image.tar
       SARIF_DIR: sarif-outputs
-      # Fix 1 Part B: Define the resolved image tag as a job environment variable
       IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
 
     steps:
-      # Setup environment (Download & Load Image)
       - name: Download & Load Image Artifact
         uses: actions/download-artifact@v4
         with:
@@ -71,10 +66,9 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Trivy Image Scan
-        # Use a stable major tag, e.g., @v0, to avoid version checks and master branch volatility
-        uses: aquasecurity/trivy-action@v0 
+        # FIX 1: Use a specific, known stable tag instead of @v0
+        uses: aquasecurity/trivy-action@v0.29.0 
         with:
-          # Use the job environment variable, which resolves correctly.
           image-ref: ${{ env.IMAGE_REF }}
           format: sarif
           output: ${{ env.SARIF_DIR }}/trivy-results.sarif
@@ -97,11 +91,9 @@ jobs:
     env:
       IMAGE_TAR_NAME: image.tar
       SARIF_DIR: sarif-outputs
-      # Fix 1 Part B: Define the resolved image tag as a job environment variable
       IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
 
     steps:
-      # Setup environment (Download & Load Image)
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
         with:
@@ -111,12 +103,16 @@ jobs:
           docker load -i "$IMAGE_TAR_NAME"
           mkdir -p ${{ env.SARIF_DIR }}
 
-      - name: Install Grype CLI
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-
+      # FIX 2: Use a dedicated setup action for Grype to ensure proper installation and path setup, 
+      # which is more robust than a direct curl/sh pipe.
+      - name: Install Grype
+        uses: anchore/setup-action@v1 # Use a dedicated setup action
+        with:
+          version: 'latest'
+          
       - name: Run Grype Image Scan
         run: |
-          # Fix 2: Ensure Grype receives the image reference as a clean CLI argument
+          # The command is clean and uses the properly resolved environment variable.
           grype \
             -o sarif \
             --file ${{ env.SARIF_DIR }}/grype-results.sarif \
@@ -141,13 +137,11 @@ jobs:
     env:
       IMAGE_TAR_NAME: image.tar
       SARIF_DIR: sarif-outputs
-      # Fix 1 Part B: Define the resolved image tag as a job environment variable
       IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
 
     steps:
       - uses: actions/checkout@v4 
         
-      # Setup environment (Download & Load Image)
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
         with:
@@ -158,7 +152,6 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Snyk Container Scan
-        # Fix 3: Updated to use @master to resolve the action resolution error
         uses: snyk/actions/docker@master 
         continue-on-error: true
         env:
