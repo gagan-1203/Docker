@@ -132,32 +132,29 @@ jobs:
     name: Snyk Scan
     needs: prepare_image
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     env:
+      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
-      SARIF_DIR: sarif-outputs # Define directory for SARIF output
 
     steps:
-      - uses: actions/checkout@v4 
+      - uses: actions/checkout@v4 # Required to access the Dockerfile path in the repository
         
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
         with:
           name: container-image
-      - name: Load Image from Tar & Create SARIF Directory
-        run: |
-          docker load -i "$IMAGE_TAR_NAME"
-          mkdir -p ${{ env.SARIF_DIR }}
 
+      - name: Load Image from Tar
+        run: docker load -i "$IMAGE_TAR_NAME"
+
+      # --- Snyk Scan (Docker action) ---
       - name: Snyk Container Scan
         uses: snyk/actions/docker@master
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ${{ needs.prepare_image.outputs.image_tag }}
+          image: ${{ env.IMAGE }}
           # Ensure SARIF output goes to the correct directory
           args: --severity-threshold=high --file=./first-container/Dockerfile --sarif --sarif-file-output=${{ env.SARIF_DIR }}/snyk.sarif
           
