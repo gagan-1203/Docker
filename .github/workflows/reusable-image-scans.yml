@@ -158,7 +158,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ${{ needs.prepare_image.outputs.image_tag }} 
+          image: ${{ env.IMAGE }} 
           # CRITICAL FIX: Use the absolute path starting with ${{ github.workspace }}
           args: --severity-threshold=high --file=./first-container/Dockerfile --sarif --sarif-file-output=${{ github.workspace }}/${{ env.SARIF_DIR }}/snyk.sarif
           
