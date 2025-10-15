@@ -153,9 +153,11 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Snyk Container Scan (via Docker CLI for reliable SARIF output)
+        # Using a direct docker run guarantees the SARIF file is written to the mounted host volume.
         run: |
           docker run --rm \
             -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+            # Mount host workspace to /app in the container
             -v ${{ github.workspace }}:/app \
             snyk/snyk:docker \
             snyk test \
@@ -163,6 +165,7 @@ jobs:
               --severity-threshold=high \
               --file=./first-container/Dockerfile \
               --sarif \
+              # Write output to the mounted path: /app/sarif-outputs/snyk.sarif
               --sarif-file-output=/app/${{ env.SNYK_OUTPUT_PATH }} \
               ${{ env.IMAGE }}
         continue-on-error: true
@@ -172,9 +175,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: snyk-sarif
-          # FIX: Explicitly specify the filename for the upload step.
-          path: ${{ env.SARIF_DIR }}/${{ env.SNYK_SARIF_FILE }}
-
+          # FIX: Explicitly use the full, definitive file path.
+          path: ${{ env.SNYK_OUTPUT_PATH }}
+          
   # 5. UPLOAD CONSOLIDATED RESULTS
   upload_consolidated_sarif:
     name: Upload Consolidated SARIF
