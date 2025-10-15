@@ -156,19 +156,14 @@ jobs:
       - name: Snyk Container Scan (via Docker CLI for reliable SARIF output)
         # Using a direct docker run guarantees the SARIF file is written to the mounted host volume.
         run: |
-          docker run --rm \
-            -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
-            # Mount host workspace to /app in the container
-            -v ${{ github.workspace }}:/app \
-            snyk/snyk:docker \
-            snyk test \
-              --docker \
-              --severity-threshold=high \
-              --file=./first-container/Dockerfile \
-              --sarif \
-              # Write output to the mounted path: /app/sarif-outputs/snyk.sarif
-              --sarif-file-output=/app/${{ env.SNYK_OUTPUT_PATH }} \
-              ${{ env.IMAGE }}
+        docker run --rm \
+          -e SNYK_TOKEN=${{ secrets.SNYK_TOKEN }} \
+          -v ${{ github.workspace }}:/app \
+          snyk/snyk:docker \
+          snyk container test ${{ env.IMAGE }} \
+            --file=./first-container/Dockerfile \
+            --severity-threshold=high \
+            --sarif-file-output=/app/${{ env.SNYK_OUTPUT_PATH }}
         continue-on-error: true
           
       - name: Upload Snyk SARIF Artifact
