@@ -62,7 +62,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: ${{ env.IMAGE }}
-          args: --severity-threshold=high --file=./first-container/Dockerfile
+          args: --severity-threshold=high --file=./first-container/Dockerfile --sarif-file-output=snyk.sarif
       
       - name: Upload Snyk Results
         if: always()
