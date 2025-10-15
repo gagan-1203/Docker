@@ -76,7 +76,7 @@ jobs:
 
       - name: Trivy Image Scan
         # Using the version you confirmed works for resolution
-        uses: aquasecurity/trivy-action@v0.28.0 
+        uses: aquasecurity/trivy-action@master
         with:
           # This should now correctly resolve to the full tag
           image-ref: ${{ env.IMAGE_REF }} 
