@@ -51,11 +51,9 @@ jobs:
     name: Trivy Scan
     needs: prepare_image
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
+      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
-      SARIF_DIR: sarif-outputs # Define directory for SARIF output
 
     steps:
       - name: Download Image Artifact
@@ -63,21 +61,17 @@ jobs:
         with:
           name: container-image
 
-      - name: Load Image from Tar & Create SARIF Directory
-        run: |
-          # Load the image back into the runner's Docker daemon
-          docker load -i "$IMAGE_TAR_NAME"
-          mkdir -p ${{ env.SARIF_DIR }}
+      - name: Load Image from Tar
+        # Load the image back into the runner's Docker daemon
+        run: docker load -i "$IMAGE_TAR_NAME"
 
       # --- Trivy Scan ---
       - name: Trivy Image Scan
         uses: aquasecurity/trivy-action@master
         with:
-          # Use direct output access
-          image-ref: ${{ needs.prepare_image.outputs.image_tag }}
+          image-ref: ${{ env.IMAGE }}
           format: sarif
-          # Output to the defined SARIF directory
-          output: ${{ env.SARIF_DIR }}/trivy-results.sarif
+          output: trivy-results.sarif
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
           exit-code: "0"
