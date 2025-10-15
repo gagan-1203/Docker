@@ -61,8 +61,9 @@ jobs:
       IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
 
     steps:
+      # TRIVY DEBUG STEP: Check image tag resolution
       - name: Check Image Reference Resolution
-        run: echo "Trivy IMAGE_REF is set to: ${{ env.IMAGE_REF }}"
+        run: echo "Trivy IMAGE_REF is set to:${{ env.IMAGE_REF }}"
         
       - name: Download & Load Image Artifact
         uses: actions/download-artifact@v4
@@ -74,8 +75,10 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Trivy Image Scan
+        # Using the version you confirmed works for resolution
         uses: aquasecurity/trivy-action@v0.28.0 
         with:
+          # This should now correctly resolve to the full tag
           image-ref: ${{ env.IMAGE_REF }} 
           format: sarif
           output: ${{ env.SARIF_DIR }}/trivy-results.sarif
@@ -101,8 +104,9 @@ jobs:
       IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
 
     steps:
+      # GRYPE DEBUG STEP: Check image tag resolution
       - name: Check Image Reference Resolution
-        run: echo "Grype IMAGE_REF is set to: ${{ env.IMAGE_REF }}"
+        run: echo "Grype IMAGE_REF is set to:${{ env.IMAGE_REF }}"
         
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
@@ -113,9 +117,9 @@ jobs:
           docker load -i "$IMAGE_TAR_NAME"
           mkdir -p ${{ env.SARIF_DIR }}
 
+      # FIX: Using the correct, official action for Grype scanning
       - name: Run Grype Image Scan
-        # Using the correct, official action for Grype scanning
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v3 
         with:
           image: ${{ env.IMAGE_REF }}
           output-format: sarif
@@ -146,7 +150,7 @@ jobs:
       IMAGE_REF: ${{ needs.prepare_image.outputs.image_tag }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4 
         
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
@@ -158,7 +162,7 @@ jobs:
           mkdir -p ${{ env.SARIF_DIR }}
 
       - name: Snyk Container Scan
-        uses: snyk/actions/docker@master
+        uses: snyk/actions/docker@master 
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -186,7 +190,7 @@ jobs:
       - name: Download All SARIF Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: sarif-outputs
+          path: sarif-outputs 
           pattern: "*-sarif"
           merge-multiple: true
 
