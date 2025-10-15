@@ -11,15 +11,21 @@ on:
         required: true
 
 jobs:
-  # 1. PULL IMAGE ONCE AND SAVE AS ARTIFACT
+  # 1. PULL IMAGE ONCE, SAVE AS ARTIFACT, AND EXPOSE IMAGE NAME AS OUTPUT
   prepare_image:
     name: Prepare Image Artifact
     runs-on: ubuntu-latest
+    outputs:
+      # Expose the full image tag for use in subsequent scan jobs
+      image_tag: ${{ steps.set_image_name.outputs.full_tag }}
     env:
-      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
 
     steps:
+      - name: Set Image Tag Output
+        id: set_image_name
+        run: echo "full_tag=${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}" >> $GITHUB_OUTPUT
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -27,115 +33,156 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Pull Built Image
-        # The image is pulled and loaded into the runner's Docker daemon
-        run: docker pull "$IMAGE"
+        run: docker pull ${{ steps.set_image_name.outputs.full_tag }}
 
       - name: Save Image to Tar for Artifact
-        # Save the pulled image to a local .tar file
-        run: docker save "$IMAGE" -o "$IMAGE_TAR_NAME"
+        run: docker save ${{ steps.set_image_name.outputs.full_tag }} -o "$IMAGE_TAR_NAME"
 
       - name: Upload Image Artifact
-        # Upload the .tar file so other jobs can access it
         uses: actions/upload-artifact@v4
         with:
           name: container-image
           path: ${{ env.IMAGE_TAR_NAME }}
 
-  # 2. TRIVY SCAN JOB (uses artifact)
+  # 2. TRIVY SCAN JOB: Scan and upload SARIF artifact
   trivy_scan:
     name: Trivy Scan
     needs: prepare_image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
-      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
+      SARIF_DIR: sarif-outputs
 
     steps:
-      - name: Download Image Artifact
+      # Setup environment (Download & Load Image)
+      - name: Download & Load Image Artifact
         uses: actions/download-artifact@v4
         with:
           name: container-image
+      - name: Load Image from Tar & Create SARIF Directory
+        run: |
+          docker load -i "$IMAGE_TAR_NAME"
+          mkdir -p ${{ env.SARIF_DIR }}
 
-      - name: Load Image from Tar
-        # Load the image back into the runner's Docker daemon
-        run: docker load -i "$IMAGE_TAR_NAME"
-
-      # --- Trivy Scan ---
       - name: Trivy Image Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.12.0
         with:
-          image-ref: ${{ env.IMAGE }}
+          image-ref: ${{ needs.prepare_image.outputs.image_tag }}
           format: sarif
-          output: trivy-results.sarif
+          output: ${{ env.SARIF_DIR }}/trivy-results.sarif # Output to common directory
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
           exit-code: "0"
 
-      - name: Upload Trivy Results
+      - name: Upload Trivy SARIF Artifact
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: trivy-results.sarif
+          name: trivy-sarif # Unique artifact name
+          path: ${{ env.SARIF_DIR }}/trivy-results.sarif
 
-  # 3. GRYPE SCAN JOB (uses artifact)
+  # 3. GRYPE SCAN JOB: Scan and upload SARIF artifact
   grype_scan:
     name: Grype Scan
     needs: prepare_image
     runs-on: ubuntu-latest
     env:
-      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
+      SARIF_DIR: sarif-outputs
 
     steps:
+      # Setup environment (Download & Load Image)
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
         with:
           name: container-image
+      - name: Load Image from Tar & Create SARIF Directory
+        run: |
+          docker load -i "$IMAGE_TAR_NAME"
+          mkdir -p ${{ env.SARIF_DIR }}
 
-      - name: Load Image from Tar
-        run: docker load -i "$IMAGE_TAR_NAME"
+      - name: Grype Image Scan (CLI for SARIF)
+        run: |
+          # Install Grype CLI
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Run Grype, output SARIF to common directory
+          grype \
+            -o sarif \
+            --file ${{ env.SARIF_DIR }}/grype-results.sarif \
+            --fail-on high \
+            ${{ needs.prepare_image.outputs.image_tag }}
 
-      # --- Grype Scan ---
-      - name: Grype Image Scan
-        uses: anchore/scan-action@v3
+      - name: Upload Grype SARIF Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          image: ${{ env.IMAGE }}
-          severity-cutoff: high
-          fail-build: true
+          name: grype-sarif # Unique artifact name
+          path: ${{ env.SARIF_DIR }}/grype-results.sarif
 
-  # 4. SNYK SCAN JOB (uses artifact, includes fix)
+  # 4. SNYK SCAN JOB: Scan and upload SARIF artifact
   snyk_scan:
     name: Snyk Scan
     needs: prepare_image
     runs-on: ubuntu-latest
     env:
-      IMAGE: ${{ secrets.DOCKER_USERNAME }}/my-app:${{ github.sha }}
       IMAGE_TAR_NAME: image.tar
+      SARIF_DIR: sarif-outputs
 
     steps:
-      - uses: actions/checkout@v4 # Required to access the Dockerfile path in the repository
+      - uses: actions/checkout@v4 
         
+      # Setup environment (Download & Load Image)
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
         with:
           name: container-image
+      - name: Load Image from Tar & Create SARIF Directory
+        run: |
+          docker load -i "$IMAGE_TAR_NAME"
+          mkdir -p ${{ env.SARIF_DIR }}
 
-      - name: Load Image from Tar
-        run: docker load -i "$IMAGE_TAR_NAME"
-
-      # --- Snyk Scan (Docker action) ---
       - name: Snyk Container Scan
-        uses: snyk/actions/docker@master
+        uses: snyk/actions/docker@v3
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ${{ env.IMAGE }}
-          args: --severity-threshold=high --file=./first-container/Dockerfile
-          sarif: true # FIX: This setting tells the Snyk action to generate the snyk.sarif file
-      
-      - name: Upload Snyk Results
+          image: ${{ needs.prepare_image.outputs.image_tag }}
+          # Snyk must be told where to output the SARIF file
+          args: --severity-threshold=high --file=./first-container/Dockerfile --sarif --sarif-file-output=${{ env.SARIF_DIR }}/snyk.sarif
+          
+      - name: Upload Snyk SARIF Artifact
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-sarif # Unique artifact name
+          path: ${{ env.SARIF_DIR }}/snyk.sarif
+
+  # 5. UPLOAD CONSOLIDATED RESULTS
+  upload_consolidated_sarif:
+    name: Upload Consolidated SARIF
+    # Wait for all scan jobs to complete and produce their SARIF artifacts
+    needs: [trivy_scan, grype_scan, snyk_scan]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # Critical permission for uploading results
+      
+    steps:
+      # Download all SARIF artifacts into a single directory named 'sarif-outputs'
+      - name: Download All SARIF Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: sarif-outputs 
+          pattern: "*-sarif" # Downloads artifacts named trivy-sarif, grype-sarif, and snyk-sarif
+          merge-multiple: true # Combines the contents of all artifacts into the target path
+
+      # This step uploads ALL .sarif files found in the specified directory.
+      # GitHub Code Scanning handles the cross-tool deduplication internally.
+      - name: Upload Consolidated Results to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: snyk.sarif
+          sarif_file: sarif-outputs # Points to the directory containing all files
