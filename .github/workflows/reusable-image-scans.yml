@@ -103,7 +103,7 @@ jobs:
       # REMOVED: Load Image from Tar
       
       # ADDED: Checkout to ensure SARIF directory is created in workspace
-      - uses: actions/checkout@v4 
+      - uses: actions/checkout@v5 
       - name: Create SARIF Directory
         run: mkdir -p ${{ env.SARIF_DIR }} # Ensure directory exists
         
@@ -141,7 +141,7 @@ jobs:
       SNYK_OUTPUT_PATH: sarif-outputs/snyk.sarif
 
     steps:
-      - uses: actions/checkout@v4 
+      - uses: actions/checkout@v5 
         
       - name: Download Image Artifact
         uses: actions/download-artifact@v4
