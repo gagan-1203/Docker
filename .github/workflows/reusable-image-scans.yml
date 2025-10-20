@@ -60,7 +60,7 @@ jobs:
 
     steps:
       - name: Download Image Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: container-image
 
@@ -144,7 +144,7 @@ jobs:
       - uses: actions/checkout@v4 
         
       - name: Download Image Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: container-image
 
@@ -185,7 +185,7 @@ jobs:
       
     steps:
       - name: Download All SARIF Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: sarif-outputs
           pattern: "*-sarif"
